@@ -31,6 +31,7 @@ LOG_SOURCE_CATEGORY("system.sleep");
 #include "system_cloud.h"
 #include "system_cloud_internal.h"
 #include "system_mode.h"
+#include "firmware_update.h"
 #include "spark_wiring_system.h"
 #include "led_service.h"
 #include "system_task.h"
@@ -77,13 +78,17 @@ int system_sleep_ext(const hal_sleep_config_t* config, hal_wakeup_source_base_t*
     // so that the network status remains if the configuration is invalid.
     CHECK(hal_sleep_validate_config(config, nullptr));
 
+    // Cancel the firmware update
+    system::FirmwareUpdate::instance()->finishUpdate(FirmwareUpdateFlag::CANCEL);
+
     SystemSleepConfigurationHelper configHelper(config);
 
+    // Disconnect from cloud
     bool cloudResume = false;
-    // Disconnect from cloud is necessary.
-    // Make sure all confirmable UDP messages are sent and acknowledged before sleeping
     if (configHelper.cloudDisconnectRequested() && spark_cloud_flag_connected()) {
-        if (configHelper.sleepFlags().isSet(SystemSleepFlag::WAIT_CLOUD)) {
+        // Whether to disconnect from the cloud gracefully depends on the global options,
+        // see Particle.setDisconnectOptions()
+        /* if (configHelper.sleepFlags().isSet(SystemSleepFlag::WAIT_CLOUD)) */ {
             unsigned duration = 0; // Sleep duration in seconds
             const auto src = (const hal_wakeup_source_rtc_t*)configHelper.wakeupSourceFeatured(HAL_WAKEUP_SOURCE_TYPE_RTC);
             if (src) {
